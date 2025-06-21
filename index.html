@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect" />
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+    <title>Xyether YouTube Downloader</title>
+    <!-- FINALIZED Content-Security-Policy -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; object-src 'self'; img-src 'self' data: https://i.ytimg.com;">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <style type="text/tailwindcss">
+        :root {
+            --primary-color: #6D28D9; --primary-color-darker: #4F46E5; --text-primary: #1F2937;
+            --text-secondary: #6B7280; --surface-background: #FFFFFF; --input-background: #F3F4F6;
+            --border-color: #D1D5DB; --neon-one: #8b5cf6; /* Purple */ --neon-two: #3b82f6; /* Blue */
+        }
+        .dark {
+            --text-primary: #FFFFFF; --text-secondary: #9CA3AF; --surface-background: #111827;
+            --input-background: #1F2937; --border-color: #374151; --neon-one: #a78bfa; --neon-two: #60a5fa;
+        }
+        .material-icons { font-family: 'Material Icons'; font-weight: normal; font-style: normal; font-size: 24px; display: inline-block; line-height: 1; -webkit-font-smoothing: antialiased; }
+        .button-gradient { background: linear-gradient(270deg, var(--primary-color-darker), var(--primary-color), var(--primary-color-darker)); background-size: 200% 200%; animation: gradient-breathing 4s ease infinite; }
+        .button-gradient:hover { animation-play-state: paused; }
+        @keyframes gradient-breathing { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        .loader { width: 24px; height: 24px; border-radius: 50%; display: inline-block; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #progress-bar { transition: width 0.3s ease-in-out; }
+        
+        /* --- FINAL Neon Glow Effect --- */
+        .thumbnail-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .thumbnail-border {
+            position: absolute;
+            inset: 0;
+            border-radius: 1.25rem;
+            padding: 3px;
+            background: conic-gradient(from var(--angle), var(--neon-two), var(--neon-one), var(--neon-two));
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: color-rotate 4s linear infinite;
+        }
+        #thumbnail-image {
+            width: 100%; height: 100%;
+            background-size: cover; background-position: center;
+            border-radius: 1rem;
+        }
+        @property --angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+        @keyframes color-rotate { to { --angle: 360deg; } }
+
+        #toast-container { position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 50; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+        .toast { transform: translateY(-150%); opacity: 0; transition: all 0.4s ease; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        #app-icon-button { transition: transform 0.2s ease-in-out; }
+        #app-icon-button:hover { transform: scale(1.15); }
+    </style>
+</head>
+<body class="relative flex min-h-screen flex-col bg-[var(--surface-background)] text-[var(--text-primary)] transition-colors duration-300 overflow-x-hidden" style="font-family: 'Be Vietnam Pro', 'Noto Sans', sans-serif;">
+    <div id="theme-transition-overlay" class="fixed inset-0 pointer-events-none z-[9999] backdrop-blur-sm bg-gray-500/10 opacity-0 transition-opacity duration-300"></div>
+
+    <header class="sticky top-0 z-10 bg-[var(--surface-background)] shadow-sm">
+        <div class="flex items-center p-4 pb-2 justify-between">
+            <button id="app-icon-button" aria-label="Settings" class="p-1.5"><img src="icon.ico" alt="App Icon" class="w-7 h-7" /></button>
+            <h1 class="text-[var(--text-primary)] text-xl font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Xyether YouTube Downloader</h1>
+            <button id="theme-button" aria-label="Toggle Theme" class="text-[var(--text-primary)] flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <span id="light-icon" class="material-icons">light_mode</span>
+                <span id="dark-icon" class="material-icons hidden">dark_mode</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col p-4 space-y-6">
+        <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-medium text-[var(--text-secondary)]">Video Link</span>
+            <div class="relative flex items-center">
+                <input id="url-input" class="form-input flex w-full min-w-0 flex-1 rounded-xl text-[var(--text-primary)] focus:outline-0 focus:ring-2 focus:ring-[var(--primary-color)] border border-[var(--border-color)] bg-[var(--input-background)] h-14 placeholder:text-[var(--text-secondary)] p-4 text-base transition-colors pr-16" placeholder="Paste link here and press Enter" />
+                <button id="fetch-button" aria-label="Submit link" class="absolute right-2 flex h-10 w-10 items-center justify-center rounded-lg button-gradient text-white transition-colors"><span class="material-icons">keyboard_return</span></button>
+            </div>
+        </label>
+        
+        <div id="info-section" class="hidden flex-col">
+             <div class="mt-4 flex w-full flex-col items-center justify-center bg-transparent">
+                <div class="w-full max-w-md aspect-video thumbnail-container">
+                    <div class="thumbnail-border"></div>
+                    <div id="thumbnail-image"></div>
+                </div>
+                <p id="thumbnail-text" class="text-sm text-[var(--text-secondary)] mt-4 text-center font-semibold"></p>
+            </div>
+            
+            <div id="quality-section" class="hidden flex-col gap-1.5 mt-4">
+                 <label for="quality-select" class="text-sm font-medium text-[var(--text-secondary)]">Quality</label>
+                 <select id="quality-select" class="form-select w-full rounded-lg text-[var(--text-primary)] focus:outline-0 focus:ring-2 focus:ring-[var(--primary-color)] border-[var(--border-color)] bg-[var(--input-background)] placeholder:text-[var(--text-secondary)] transition-colors"></select>
+            </div>
+
+             <div class="flex flex-col gap-3 mt-4">
+                <label for="recode-toggle" class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="recode-toggle" class="form-checkbox h-5 w-5 rounded text-[var(--primary-color)] bg-[var(--input-background)] border-[var(--border-color)] focus:ring-[var(--primary-color)]">
+                    <span class="ml-3 text-sm font-medium text-[var(--text-secondary)]">Re-encode (Smaller File Size)</span>
+                </label>
+                <div id="crf-section" class="hidden flex flex-col gap-1.5">
+                    <div class="flex justify-between items-center">
+                         <span class="text-sm font-medium text-[var(--text-secondary)]">Quality (CRF):</span>
+                         <span id="crf-value-label" class="text-sm font-bold text-[var(--primary-color)]">23</span>
+                    </div>
+                    <input id="crf-slider" type="range" min="18" max="28" value="23" class="w-full h-2 bg-[var(--input-background)] rounded-lg appearance-none cursor-pointer" disabled>
+                </div>
+            </div>
+        </div>
+
+        <div id="progress-section" class="hidden flex-col gap-1 mt-4">
+            <div class="w-full bg-[var(--input-background)] rounded-full h-2.5 border border-[var(--border-color)]"><div id="progress-bar" class="bg-[var(--primary-color)] h-2 rounded-full"></div></div>
+            <p id="progress-text" class="text-center text-xs text-[var(--text-secondary)]"></p>
+        </div>
+
+        <div class="flex-grow"></div>
+
+        <!-- Button Container -->
+        <div id="button-container" class="max-w-md mx-auto w-full flex items-center gap-2">
+            <button id="download-button" class="button-gradient flex-grow flex w-full min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-12 px-6 text-white text-base font-bold leading-normal tracking-[0.015em] transition-all duration-300 ease-in-out shadow-md"><span class="truncate">Download</span></button>
+            <button id="show-folder-button" class="hidden flex-shrink-0 flex size-12 items-center justify-center rounded-xl bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-[var(--text-primary)] transition-colors shadow-md"><span class="material-icons">folder_open</span></button>
+        </div>
+    </main>
+    
+    <div id="toast-container"></div>
+    
+    <div id="settings-modal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+         <div class="w-full max-w-lg rounded-xl shadow-2xl p-6 border border-[var(--border-color)] bg-[var(--surface-background)]">
+            <h2 class="text-2xl font-bold text-center mb-6 text-[var(--text-primary)]">Settings</h2>
+            <div class="space-y-4">
+                <label class="flex flex-col gap-1.5">
+                    <span class="text-sm font-medium text-[var(--text-secondary)]">Default Download Folder</span>
+                    <div class="flex items-center gap-2">
+                        <input id="default-path-input" type="text" readonly class="form-input flex w-full min-w-0 flex-1 rounded-lg text-[var(--text-primary)] border border-[var(--border-color)] bg-[var(--input-background)] h-12 px-4" placeholder="Will ask where to save each time">
+                        <button id="browse-path-button" class="flex-shrink-0 flex h-12 w-24 items-center justify-center rounded-lg bg-gray-500 hover:bg-gray-600 text-white transition-colors">Browse</button>
+                    </div>
+                </label>
+                <div class="border-t border-[var(--border-color)] my-4"></div>
+                <button id="open-socials-button" class="w-full flex h-12 items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-[var(--text-primary)] transition-colors">My Socials</button>
+            </div>
+            <div class="flex justify-end gap-4 mt-8"><button id="save-settings-button" class="flex h-12 px-6 items-center justify-center rounded-lg button-gradient text-white transition-colors">Save & Close</button></div>
+        </div>
+    </div>
+
+    <div id="socials-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="w-full max-w-sm rounded-xl shadow-2xl p-6 border border-[var(--border-color)] bg-[var(--surface-background)]">
+            <div class="flex items-center mb-6">
+                <button id="socials-back-button" class="text-[var(--text-primary)] flex p-3 shrink-0 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><span class="material-icons">arrow_back_ios_new</span></button>
+                <h2 class="flex-1 text-center text-xl font-bold text-[var(--text-primary)] -ml-12">My Socials</h2>
+            </div>
+            <div class="space-y-3" id="socials-links-container"></div>
+            <p class="text-xs text-center text-[var(--text-secondary)] mt-6">If you have any errors, contact us on Discord.</p>
+        </div>
+    </div>
+    
+    <script>
+    (() => {
+        const getEl = (id) => document.getElementById(id);
+        const dom = {
+            body: document.body, urlInput: getEl('url-input'), fetchButton: getEl('fetch-button'),
+            downloadButton: getEl('download-button'), showFolderButton: getEl('show-folder-button'),
+            themeButton: getEl('theme-button'), appIconButton: getEl('app-icon-button'), infoSection: getEl('info-section'),
+            thumbnailImage: getEl('thumbnail-image'), thumbnailText: getEl('thumbnail-text'),
+            qualitySection: getEl('quality-section'), qualitySelect: getEl('quality-select'),
+            recodeToggle: getEl('recode-toggle'), crfSection: getEl('crf-section'), crfSlider: getEl('crf-slider'),
+            crfValueLabel: getEl('crf-value-label'), progressSection: getEl('progress-section'),
+            progressBar: getEl('progress-bar'), progressText: getEl('progress-text'),
+            toastContainer: getEl('toast-container'), settingsModal: getEl('settings-modal'),
+            defaultPathInput: getEl('default-path-input'), browsePathButton: getEl('browse-path-button'),
+            saveSettingsButton: getEl('save-settings-button'), openSocialsButton: getEl('open-socials-button'),
+            socialsModal: getEl('socials-modal'), socialsBackButton: getEl('socials-back-button'),
+            socialsLinksContainer: getEl('socials-links-container'), lightIcon: getEl('light-icon'),
+            darkIcon: getEl('dark-icon'), themeTransitionOverlay: getEl('theme-transition-overlay'),
+        };
+        let state = { videoTitle: '', availableFormats: [], downloadFilePath: null, isDownloading: false };
+
+        const ui = {
+            setButtonLoading: (isLoading) => {
+                dom.fetchButton.innerHTML = isLoading ? '<div class="loader"></div>' : '<span class="material-icons">keyboard_return</span>';
+                dom.fetchButton.disabled = isLoading;
+            },
+            showToast: (message, type = 'info') => {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-white py-2 px-4 rounded-lg shadow-lg`;
+                toast.textContent = message;
+                dom.toastContainer.appendChild(toast);
+                setTimeout(() => toast.classList.add('show'), 10);
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    toast.addEventListener('transitionend', () => toast.remove());
+                }, 4000);
+            },
+            updateTheme: (theme) => {
+                const isDark = theme === 'dark';
+                dom.body.classList.toggle('dark', isDark);
+                dom.lightIcon.classList.toggle('hidden', isDark);
+                dom.darkIcon.classList.toggle('hidden', !isDark);
+            },
+            populateResolutions: (formats) => {
+                dom.qualitySelect.innerHTML = '';
+                let videoOptions = new Map();
+                const videoStreams = formats.filter(f => f.vcodec !== 'none' && f.acodec === 'none' && f.height >= 360).sort((a, b) => b.height - a.height);
+                const bestAudio = formats.filter(f => f.acodec !== 'none' && f.vcodec === 'none').sort((a,b) => b.abr - a.abr)[0];
+                
+                if (videoStreams.length > 0) {
+                    const bestOverall = videoStreams[0];
+                    videoOptions.set('best_overall', {
+                        format_id: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
+                        label: `Best (${bestOverall.height}p @${Math.round(bestOverall.fps || 30)}fps)`,
+                    });
+                    if (bestOverall.height > 1080) {
+                        videoOptions.set('best_1080p', {
+                            format_id: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]',
+                            label: `Best (1080p)`,
+                        });
+                    }
+                }
+                
+                videoStreams.forEach(f => {
+                    const label = `${f.height}p @${Math.round(f.fps || 30)}fps`;
+                    if (!videoOptions.has(label)) {
+                        videoOptions.set(label, { format_id: `${f.format_id}+${bestAudio.format_id}`, label: label });
+                    }
+                });
+                
+                state.availableFormats = Array.from(videoOptions.values());
+                state.availableFormats.push({ format_id: 'mp3', label: 'MP3 Audio (128kbps)' });
+                state.availableFormats.forEach((format, index) => dom.qualitySelect.add(new Option(format.label, index)));
+                dom.qualitySection.classList.remove('hidden');
+            },
+            setUIState: (appState) => {
+                state.isDownloading = appState === 'DOWNLOADING';
+                dom.urlInput.disabled = state.isDownloading || appState === 'FETCHING';
+                ui.setButtonLoading(appState === 'FETCHING');
+                dom.infoSection.classList.toggle('hidden', !['READY', 'DOWNLOADING', 'COMPLETE'].includes(appState));
+                dom.progressSection.classList.toggle('hidden', appState !== 'DOWNLOADING');
+                dom.downloadButton.disabled = appState !== 'READY' && appState !== 'COMPLETE';
+                dom.showFolderButton.classList.toggle('hidden', appState !== 'COMPLETE');
+
+                if (appState === 'IDLE') {
+                    dom.downloadButton.innerHTML = `<span class="truncate">Download</span>`;
+                    dom.qualitySection.classList.add('hidden');
+                } else if (appState === 'READY') {
+                    dom.downloadButton.innerHTML = `<span class="truncate">Download</span>`;
+                } else if (appState === 'DOWNLOADING') {
+                    dom.downloadButton.innerHTML = `<span class="truncate">Downloading...</span>`;
+                } else if (appState === 'COMPLETE') {
+                    dom.downloadButton.innerHTML = `<span class="truncate">Download Again</span>`;
+                }
+            }
+        };
+
+        const events = {
+            handleFetch: async () => {
+                const url = dom.urlInput.value.trim();
+                if (!url) return ui.showToast('Please enter a URL.', 'error');
+                ui.setUIState('FETCHING');
+                try {
+                    const info = await window.electronAPI.fetchVideoInfo(url);
+                    state.videoTitle = info.title;
+                    dom.thumbnailImage.style.backgroundImage = `url('${info.thumbnail}')`;
+                    dom.thumbnailText.textContent = info.title;
+                    ui.populateResolutions(info.formats);
+                    ui.setUIState('READY');
+                } catch (error) { ui.showToast(`Error: ${error.message}`, 'error'); ui.setUIState('IDLE'); }
+            },
+            handleDownload: () => {
+                if (state.isDownloading) return; // Prevent multiple downloads
+                const selectedFormat = state.availableFormats[dom.qualitySelect.value];
+                if (!selectedFormat) return;
+                ui.setUIState('DOWNLOADING');
+                window.electronAPI.downloadVideo({
+                    url: dom.urlInput.value.trim(), formatId: selectedFormat.format_id,
+                    recode: dom.recodeToggle.checked, crf: dom.crfSlider.value,
+                    videoTitle: state.videoTitle,
+                });
+            },
+            createSocials: () => {
+                dom.socialsLinksContainer.innerHTML = '';
+                const socials = [
+                    { name: 'YouTube', url: 'https://www.youtube.com/@Xyether', svg: `<svg class="w-6 h-6 mr-4 text-[#FF0000]" viewBox="0 0 24 24" fill="currentColor"><path d="M21.582,6.186c-0.23-0.854-0.908-1.532-1.762-1.762C18.265,4,12,4,12,4S5.735,4,4.18,4.424c-0.854,0.23-1.532,0.908-1.762,1.762C2,7.735,2,12,2,12s0,4.265,0.418,5.814c0.23,0.854,0.908,1.532,1.762,1.762C5.735,20,12,20,12,20s6.265,0,7.82-0.424c0.854-0.23,1.532-0.908,1.762-1.762C22,16.265,22,12,22,12S22,7.735,21.582,6.186z M10,15.464V8.536L16,12L10,15.464z"/></svg>` },
+                    { name: 'TikTok', url: 'https://tiktok.com/@xyether_', svg: `<svg class="w-6 h-6 mr-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12.94,1.61V15.78a2.83,2.83,0,0,1-2.83,2.83h0a2.83,2.83,0,0,1-2.83-2.83h0a2.84,2.84,0,0,1,2.83-2.84h0V9.17h0A6.61,6.61,0,0,0,3.5,15.78h0a6.61,6.61,0,0,0,6.61,6.61h0a6.61,6.61,0,0,0,6.61-6.61V9.17l.2.1a8.08,8.08,0,0,0,3.58.84h0V6.33l-.11,0a4.84,4.84,0,0,1-3.67-4.7H12.94Z"/></svg>` },
+                    { name: 'Discord', url: 'https://discord.gg/cKGwJHG9GE', svg: `<svg class="w-6 h-6 mr-4" viewBox="0 -28.5 256 256"><g><path d="M216.856339,16.5966031 C200.285002,8.84328665 182.566144,3.2084988 164.041564,0 C161.766523,4.11318106 159.108624,9.64549908 157.276099,14.0464379 C137.583995,11.0849896 118.072967,11.0849896 98.7430163,14.0464379 C96.9108417,9.64549908 94.1925838,4.11318106 91.8971895,0 C73.3526068,3.2084988 55.6133949,8.86399117 39.0420583,16.6376612 C5.61752293,67.146514 -3.4433191,116.400813 1.08711069,164.955721 C23.2560196,181.510915 44.7403634,191.567697 65.8621325,198.148576 C71.0772151,190.971126 75.7283628,183.341335 79.7352139,175.300261 C72.104019,172.400575 64.7949724,168.822202 57.8887866,164.667963 C59.7209612,163.310589 61.5131304,161.891452 63.2445898,160.431257 C105.36741,180.133187 151.134928,180.133187 192.754523,160.431257 C194.506336,161.891452 196.298154,163.310589 198.110326,164.667963 C191.183787,168.842556 183.854737,172.420929 176.223542,175.320965 C180.230393,183.341335 184.861538,190.991831 190.096624,198.16893 C211.238746,191.588051 232.743023,181.531619 254.911949,164.955721 C260.227747,108.668201 245.831087,59.8662432 216.856339,16.5966031 Z M85.4738752,135.09489 C72.8290281,135.09489 62.4592217,123.290155 62.4592217,108.914901 C62.4592217,94.5396472 72.607595,82.7145587 85.4738752,82.7145587 C98.3405064,82.7145587 108.709962,94.5189427 108.488529,108.914901 C108.508531,123.290155 98.3405064,135.09489 85.4738752,135.09489 Z M170.525237,135.09489 C157.88039,135.09489 147.510584,123.290155 147.510584,108.914901 C147.510584,94.5396472 157.658606,82.7145587 170.525237,82.7145587 C183.391518,82.7145587 193.761324,94.5189427 193.539891,108.914901 C193.539891,123.290155 183.391518,135.09489 170.525237,135.09489 Z" fill="#5865F2" fill-rule="nonzero"></path></g></svg>` },
+                ];
+                socials.forEach(s => {
+                    const link = document.createElement('a');
+                    link.className = "flex items-center p-4 rounded-lg bg-[var(--input-background)] hover:bg-opacity-75 transition-all cursor-pointer";
+                    link.innerHTML = `${s.svg}<span class="font-semibold text-[var(--text-primary)]">${s.name}</span>`;
+                    link.onclick = (e) => { e.preventDefault(); window.electronAPI.openExternalLink(s.url); };
+                    dom.socialsLinksContainer.appendChild(link);
+                });
+            },
+            init: async () => {
+                events.createSocials();
+                dom.fetchButton.addEventListener('click', events.handleFetch);
+                dom.urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') events.handleFetch(); });
+                dom.downloadButton.addEventListener('click', events.handleDownload);
+                dom.showFolderButton.addEventListener('click', () => window.electronAPI.showItemInFolder(state.downloadFilePath));
+                dom.recodeToggle.addEventListener('change', () => {
+                    const isRecode = dom.recodeToggle.checked;
+                    dom.crfSection.classList.toggle('hidden', !isRecode); dom.crfSlider.disabled = !isRecode;
+                });
+                dom.crfSlider.addEventListener('input', () => dom.crfValueLabel.textContent = dom.crfSlider.value);
+                dom.themeButton.addEventListener('click', () => {
+                    dom.themeTransitionOverlay.style.opacity = '1';
+                    setTimeout(async () => {
+                        const newTheme = dom.body.classList.contains('dark') ? 'light' : 'dark';
+                        ui.updateTheme(newTheme);
+                        await window.electronAPI.setSetting('theme', newTheme);
+                        dom.themeTransitionOverlay.style.opacity = '0';
+                    }, 150);
+                });
+                dom.appIconButton.addEventListener('click', () => dom.settingsModal.classList.remove('hidden'));
+                dom.saveSettingsButton.addEventListener('click', async () => {
+                    await window.electronAPI.setSetting('defaultPath', dom.defaultPathInput.value);
+                    dom.settingsModal.classList.add('hidden');
+                    ui.showToast('Settings Saved!');
+                });
+                dom.browsePathButton.addEventListener('click', async () => {
+                    const dir = await window.electronAPI.selectDirectory();
+                    if(dir) dom.defaultPathInput.value = dir;
+                });
+                dom.openSocialsButton.addEventListener('click', () => dom.socialsModal.classList.remove('hidden'));
+                dom.socialsBackButton.addEventListener('click', () => dom.socialsModal.classList.add('hidden'));
+
+                window.electronAPI.onDownloadProgress((_, data) => {
+                    dom.progressBar.style.width = `${data.percent}%`;
+                    dom.progressText.textContent = `${data.percent.toFixed(1)}% of ${data.totalSize} at ${data.speed}`;
+                    dom.downloadButton.innerHTML = `<span class="truncate">Downloading... ${data.percent.toFixed(1)}%</span>`;
+                });
+                window.electronAPI.onDownloadComplete((_, { filePath }) => {
+                    state.downloadFilePath = filePath;
+                    dom.progressText.textContent = 'Merge complete!';
+                    ui.showToast('Download complete!');
+                    ui.setUIState('COMPLETE');
+                });
+                window.electronAPI.onDownloadError((_, error) => {
+                    ui.showToast(`Download Error: ${error}`, 'error');
+                    ui.setUIState('IDLE');
+                });
+                
+                ui.updateTheme(await window.electronAPI.getSetting('theme', 'light'));
+                dom.defaultPathInput.value = await window.electronAPI.getSetting('defaultPath', '');
+                ui.setUIState('IDLE');
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', events.init);
+    })();
+    </script>
+</body>
+</html>
