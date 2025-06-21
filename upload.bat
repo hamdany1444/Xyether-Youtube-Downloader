@@ -2,13 +2,16 @@
 :: This script automates uploading your project files to GitHub.
 
 :: --- Configuration ---
-:: Set your main branch name here. It's usually "main" or "master".
-set BRANCH_NAME=main
+:: Set your main branch name here.
+:: Your local Git branch might be named "master" (older) or "main" (newer).
+:: The error log you provided shows your branch is "master", so we've set it here.
+:: If you create a new repository in the future, you may need to change this to "main".
+set BRANCH_NAME=master
 
 :: ---------------------
 
 echo ===============================================
-echo  Xyether YouTube Downloader - GitHub Uploader  
+echo  Xyether YouTube Downloader - GitHub Uploader
 echo ===============================================
 echo.
 
@@ -41,7 +44,7 @@ echo [Step 2/3] Committing changes with message: "%commit_message%"
 git commit -m "%commit_message%"
 
 :: 3. Push the committed changes to GitHub.
-echo [Step 3/3] Pushing to GitHub...
+echo [Step 3/3] Pushing to GitHub on branch: %BRANCH_NAME%...
 git push origin %BRANCH_NAME%
 
 echo.
